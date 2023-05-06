@@ -18,8 +18,8 @@ cd /home/pi && sudo rm -Rf /home/pi/KlipperScreen
 Installer la nouvelle version de KlipperScreen  
 
 ```
-cd /home/pi
-git clone https://github.com/CIS94500/KlipperScreen-FLSUN-SR.git && sudo mv /home/pi/KlipperScreen-FLSUN-SR /home/pi/KlipperScreen
+cd /home/pi && git clone https://github.com/CIS94500/KlipperScreen-FLSUN-SR.git 
+sudo mv /home/pi/KlipperScreen-FLSUN-SR /home/pi/KlipperScreen
 cd /home/pi/KlipperScreen/scripts && ./KlipperScreen-install.sh
 ```
 
