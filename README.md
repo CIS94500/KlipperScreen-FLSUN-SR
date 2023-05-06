@@ -23,7 +23,7 @@ sudo mv /home/pi/KlipperScreen-FLSUN-SR /home/pi/KlipperScreen
 cd /home/pi/KlipperScreen/scripts && ./KlipperScreen-install.sh
 ```
 
-## Ne pas mettre à jour KlipperScreen depuis le dépôt officiel   
+## Pour mettre à jour KlipperScreen depuis mon dépôt   
 
 >Dans le fichier "moonraker.conf" supprimez ce bloc de code :
 
@@ -37,7 +37,20 @@ requirements: scripts/KlipperScreen-requirements.txt
 install_script: scripts/KlipperScreen-install.sh
 managed_services: KlipperScreen
 ```
-  
+
+>Et remplacer la par :
+
+```
+[update_manager KlipperScreen]
+type: git_repo
+path: /home/pi/KlipperScreen
+origin: https://github.com/CIS94500/KlipperScreen-FLSUN-SR.git
+env: /home/pi/.KlipperScreen-env/bin/python
+requirements: /home/pi/KlipperScreen/scripts/KlipperScreen-requirements.txt
+install_script: /home/pi/KlipperScreen/scripts/KlipperScreen-install.sh
+managed_services: KlipperScreen
+```
+
 ## Macro à ajouter
 
 Si vous n'utilisez pas le pack de macros disponible [ici](https://github.com/CIS94500/Klipper-Config-FLSUN-SR/), vous devez ajouter ces macros à votre configuration.
