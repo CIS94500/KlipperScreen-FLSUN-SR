@@ -121,6 +121,18 @@ class Printer:
         logging.info(f"# PWM tools: {self.pwm_tools_count}")
         logging.info(f"# Leds: {self.ledcount}")
 
+    def register_dynamic_sensors(self, objects):
+        for obj in objects:
+            if obj.startswith("temperature_sensor "):
+                name = obj.split(" ", 1)[1]
+                if name.startswith("_"):
+                    continue
+                if obj not in self.config:
+                    logging.info(f"Registering dynamic sensor: {obj}")
+                    self.config[obj] = {}
+                    self.data[obj] = {"temperature": 0}
+                    self.tempdevcount += 1
+
     def stop_tempstore_updates(self):
         if self.store_timeout is not None:
             GLib.source_remove(self.store_timeout)
@@ -390,7 +402,8 @@ class Printer:
         for section in self.tempstore[device]:
             if results == 0 or results >= len(self.tempstore[device][section]):
                 temp[section] = self.tempstore[device][section]
-            temp[section] = self.tempstore[device][section][-results:]
+            else:
+                temp[section] = self.tempstore[device][section][-results:]
         return temp
 
     def get_tempstore_size(self):
@@ -415,15 +428,19 @@ class Printer:
     def init_temp_store(self, tempstore):
         if self.tempstore and set(self.tempstore) != set(tempstore):
             logging.debug("Tempstore has changed")
-            self.tempstore = tempstore
-            self.change_state(self.state)
-        else:
-            self.tempstore = tempstore
+        existing_devices = set(self.tempstore) if self.tempstore else set()
+        new_devices = set(tempstore)
+        for device in new_devices - existing_devices:
+            self.tempstore[device] = tempstore[device]
+        for device in existing_devices | new_devices:
+            if device in tempstore:
+                for section in tempstore[device]:
+                    self.tempstore[device][section] = tempstore[device][section]
         for device in self.tempstore:
             for x in self.tempstore[device]:
                 length = len(self.tempstore[device][x])
                 if length < self.tempstore_size:
-                    for _ in range(1, self.tempstore_size - length):
+                    for _ in range(self.tempstore_size - length):
                         self.tempstore[device][x].insert(0, 0)
         logging.info(f"Temp store: {list(self.tempstore)}")
         if not self.store_timeout:

@@ -67,8 +67,6 @@ class Panel(MenuPanel):
         return False
 
     def activate(self):
-        if not self._printer.tempstore:
-            self._screen.init_tempstore()
         self.update_graph_visibility()
         self._screen.base_panel_show_all()
 
@@ -90,6 +88,8 @@ class Panel(MenuPanel):
         devname = device.split()[1] if len(device.split()) > 1 else device
         # Support for hiding devices by name
         if devname.startswith("_"):
+            return False
+        if devname.lower() in self.hidden_sensors:
             return False
 
         if device.startswith("extruder"):
@@ -264,6 +264,8 @@ class Panel(MenuPanel):
             return
         for x in self._printer.get_temp_devices():
             if x in data:
+                if x not in self.devices:
+                    self.add_device(x)
                 self.update_temp(
                     x,
                     self._printer.get_stat(x, "temperature"),

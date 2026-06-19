@@ -316,6 +316,8 @@ class Panel(ScreenPanel):
         return b.get_date() - a.get_date() if reverse else a.get_date() - b.get_date()
 
     def confirm_print(self, widget, filename):
+        
+        action = _("Print") if self._printer.extrudercount > 0 else _("Start") 
 #Begin VSYS
         if self.macro_adaptatif_mesh:
             buttons = [
@@ -324,7 +326,6 @@ class Panel(ScreenPanel):
                 {"name": _("Cancel"), "response": Gtk.ResponseType.CANCEL, "style": "dialog-error"}
             ]
         else:
-            action = _("Print") if self._printer.extrudercount > 0 else _("Start")
             buttons = [
                 {"name": action, "response": Gtk.ResponseType.OK, "style": "dialog-info"},
                 {"name": _("Cancel"), "response": Gtk.ResponseType.CANCEL, "style": "dialog-error"}

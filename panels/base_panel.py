@@ -363,7 +363,7 @@ class BasePanel(ScreenPanel):
                         for dialog in self._screen.dialogs:
                             self._gtk.remove_dialog(dialog)
             return
-        if action != "notify_status_update" or self._screen.printer is None:
+        if action != "notify_status_update" or self._printer is None:
             return
         devices = self._printer.get_temp_devices()
         if not devices:
@@ -473,9 +473,16 @@ class BasePanel(ScreenPanel):
                 logging.info(f"Titlebar name type: {self.titlebar_name_type} items: {self.titlebar_items}")
             else:
                 self.titlebar_items = []
+            hidden_sensors = self.ks_printer_cfg.get("hidden_sensors", None)
+            if hidden_sensors is not None:
+                ScreenPanel.hidden_sensors = [str(i.strip()).lower() for i in hidden_sensors.split(',')]
+                logging.info(f"Hidden sensors: {self.hidden_sensors}")
+            else:
+                ScreenPanel.hidden_sensors = []
             self.spoolman_low_limit = self.ks_printer_cfg.getfloat("spool_low_limit", fallback=20)
         else:
             self.titlebar_items = []
+            ScreenPanel.hidden_sensors = []
             self.spoolman_low_limit = 20
 
     def show_update_dialog(self):

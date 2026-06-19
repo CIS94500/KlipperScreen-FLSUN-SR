@@ -76,7 +76,6 @@ class KlipperScreen(Gtk.Window):
     wayland = False
     notification_log = []
     prompt = None
-    tempstore_timeout = None
 
     def __init__(self, args):
         try:
@@ -985,11 +984,10 @@ class KlipperScreen(Gtk.Window):
 
     def power_devices(self, widget=None, devices=None, on=False):
         devs = self.search_power_devices(devices)
-        for dev in devs:
-            if on:
-                self._ws.klippy.power_device_on(dev)
-            else:
-                self._ws.klippy.power_device_off(dev)
+        if on:
+            self._ws.klippy.power_device_on(devs)
+        else:
+            self._ws.klippy.power_device_off(devs)
 
     def _init_printer(self, msg, remove=False, klipper=False):
         self.printer_initializing(msg, remove)
@@ -1051,6 +1049,13 @@ class KlipperScreen(Gtk.Window):
         if "spoolman" in server_info["components"]:
             self.printer.enable_spoolman()
             self.update_spool_data(self.spoolman_api.get_active_spool_id())
+            
+    def set_server_config(self, data, method, params):
+        try:
+            self.printer.tempstore_size = data["result"]["config"]["data_store"]["temperature_store_size"]
+            logging.info(f"Temperature store size: {self.printer.tempstore_size}")
+        except KeyError:
+            logging.error("Couldn't get the temperature store size")
 
     def init_klipper(self, server_info=None):
         if self.reinit_count > self.max_retries or 'printer_select' in self._cur_panels:
@@ -1078,11 +1083,15 @@ class KlipperScreen(Gtk.Window):
         logging.debug(config['result']['status'])
         # Reinitialize printer, in case the printer was shut down and anything has changed.
         self.printer.reinit(printer_info['result'], config['result']['status'])
+        objects = self.apiclient.send_request("printer/objects/list")
+        if objects and 'objects' in objects:
+            self.printer.register_dynamic_sensors(objects['objects'])
         self.printer.available_commands = self.apiclient.get_gcode_help()['result']
         info = self.apiclient.send_request("machine/system_info")
         if info and 'system_info' in info['result']:
             self.printer.system_info = info['result']['system_info']
-
+        self._ws.klippy.get_server_config(self.set_server_config)
+        
         self.ws_subscribe()
 
         items = (
@@ -1116,7 +1125,10 @@ class KlipperScreen(Gtk.Window):
         data = self.apiclient.send_request("printer/objects/query?" + "&".join(items))
         if data is False:
             return self._init_printer("Error getting printer object data")
-
+            
+        if len(self.printer.get_temp_devices()) > 0:
+            self.init_tempstore()
+            
         self.files.set_gcodes_path()
         self.power_devices(None, self._config.get_main_config().get("screen_on_devices", ""), on=True)
 
@@ -1129,49 +1141,34 @@ class KlipperScreen(Gtk.Window):
         return False
 
     def init_tempstore(self):
-        if len(self.printer.get_temp_devices()) == 0:
-            return False
-        tempstore = self.apiclient.send_request("server/temperature_store")
-        if tempstore and 'result' in tempstore and tempstore['result']:
-            self.printer.init_temp_store(tempstore['result'])
-            if hasattr(self.panels[self._cur_panels[-1]], "update_graph_visibility"):
-                self.panels[self._cur_panels[-1]].update_graph_visibility()
-            if self.tempstore_timeout:
-                self.remove_tempstore_timeout()
-        else:
-            logging.error(f'Tempstore not ready: {tempstore} Retrying in 5 seconds')
-            if self.tempstore_timeout:
-                return False
-            if self.reinit_count < self.max_retries:
-                self.reinit_count += 1
-                self.tempstore_timeout = GLib.timeout_add_seconds(5, self.retry_init_tempstore)
-            else:
-                logging.error("Max retries reached. Stopping attempts to initialize tempstore.")
-                self.remove_tempstore_timeout()
-            return False
-
-        server_config = self.apiclient.send_request("server/config")
-        if server_config:
-            try:
-                self.printer.tempstore_size = server_config["result"]["config"]["data_store"]["temperature_store_size"]
-                logging.info(f"Temperature store size: {self.printer.tempstore_size}")
-            except KeyError:
-                logging.error("Couldn't get the temperature store size")
-        return False
+        self._ws.klippy.get_temperature_store(self.set_tempstore)
 
     def base_panel_show_all(self):
         self.base_panel.show_shutdown_shortcut(self._config.get_main_config().getboolean('side_shutdown_shortcut', True))
         self.base_panel.show_heaters(True)
         self.base_panel.show_estop(True)
 
-    def remove_tempstore_timeout(self):
-        GLib.source_remove(self.tempstore_timeout)
-        self.tempstore_timeout = None
-        self.reinit_count = 0
+    def set_tempstore(self, data, method, params):
+        temp_devices = self.printer.get_temp_devices()
+        if not temp_devices:
+            return
+        if 'error' in data or 'result' not in data or not data['result']:
+            logging.info("Moonraker tempstore not yet available")
+        else:
+            self.printer.tempstore = data["result"]
 
-    def retry_init_tempstore(self):
-        self.remove_tempstore_timeout()
-        return self.init_tempstore()
+        if not self.printer.tempstore:
+            self.printer.tempstore = {}
+            for device in temp_devices:
+                self.printer.tempstore[device] = {
+                    "temperatures": [0] * self.printer.tempstore_size,
+                    "targets": [0] * self.printer.tempstore_size
+                }
+
+        self.printer.init_temp_store(self.printer.tempstore)
+        if self.panels and self._cur_panels:
+            if hasattr(self.panels[self._cur_panels[-1]], "update_graph_visibility"):
+                self.panels[self._cur_panels[-1]].update_graph_visibility()
 
     def show_keyboard(self, entry=None, event=None):
         if entry is None:

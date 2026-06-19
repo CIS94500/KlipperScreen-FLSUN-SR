@@ -172,15 +172,14 @@ textview .time {
 .message button {
     background-color: white;
     color: black;
-
 }
 
 .message_popup_echo {
-    background-color: @echo;
+    background-color: #007D70;
 }
 
 .message_popup_warning {
-    background-color: @warning;
+    background-color: #F9A825;
 }
 
 .message_popup_warning label {
